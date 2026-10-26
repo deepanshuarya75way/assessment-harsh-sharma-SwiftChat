@@ -28,6 +28,32 @@ import { fetchProfile, logout } from "../store/slices/authSlice";
 
 const COLORS = ["#ec4899", "#7c3aed", "#06b6d4", "#eab308", "#8b5cf6"];
 
+const RADAR_BASELINE = {
+  Creativity: 60,
+  Logic: 50,
+  Empathy: 70,
+  Focus: 60,
+  Energy: 50,
+  Zen: 40,
+}
+function toResonanceData(radarData){
+  const rows = (Array.isArray(radarData) ? radarData : []).map((d) => ({name: d.subject, raw: Math.max(0, (Number(d.A) || 0) - (RADAR_BASELINE[d.subject] ?? 0)), })).filter((d) => d.name && d.raw > 0);
+  const total = rows.reduce((sum, d) => sum + d.raw , 0);
+  if(!total) return [];
+  return rows.sort((a, b) => b.raw - a.raw || a.name.localCompare(b.name)).map((d) => ({name: d.name, value: Math.round((d.raw / total) * 100)}));
+}
+
+function AnalyticsEmpty({text}){
+  return(
+    <div className="text-center py-20">
+      <p className="text-xs text-sc-muted italics tracking-wider mb-1">
+        - No Analytics Yet -
+      </p>
+      <p className="text-sc-muted text-sm">{text}</p>
+    </div>
+  );
+}
+
 // ── Toast helper ─────────────────────────────────────────────────────────────
 function Toast({ message, type = "success", onDone }) {
   useEffect(() => {
@@ -471,6 +497,7 @@ export default function Profile() {
   const [showSettings, setShowSettings] = useState(false);
   const [showIdentityModal, setShowIdentityModal] = useState(false);
   const [toast, setToast] = useState(null);
+  const[analytics, setAnalytics] = useState({status: "idle", data: []}); 
 
   const isOwnProfile = currentUser?.id === id;
 
@@ -498,6 +525,22 @@ export default function Profile() {
     fetchProfileData();
     return () => controller.abort();
   }, [id]);
+
+  useEffect(() => {
+    if(activeTab !== "analytics" || !isOwnProfile) return;
+    const controller = new AbortController();
+    setAnalytics({status: "loading" , data : []});
+    api.get("/interactions/insights", {signal: controller.signal}).then((res) => {
+      setAnalytics({
+        status: "ready",
+        data: toResonanceData(res.data?.data?.radarData),
+      });
+    }).catch((err) => {
+      if(err.name === "CanceledError" || err.code === "ERR_CANCLED") return;
+      setAnalytics({status: "ready", data: []});
+    });
+    return () => controller.abort();
+  }, [activeTab, isOwnProfile, id]);
 
   const handleIdentitySaved = (updatedUser) => {
     setProfile((prev) => ({ ...prev, ...updatedUser }));
@@ -539,13 +582,6 @@ export default function Profile() {
         </div>
       </div>
     );
-
-  const mockAnalyticsData = [
-    { name: "Vibrant", value: 45 },
-    { name: "Deep", value: 30 },
-    { name: "Ethereal", value: 15 },
-    { name: "Nostalgic", value: 10 },
-  ];
 
   return (
     <>
@@ -779,7 +815,13 @@ export default function Profile() {
               </div>
             )}
 
-            {activeTab === "analytics" && (
+            {activeTab === "analytics" && ( !isOwnProfile ? (
+              <AnalyticsEmpty text="Analytics are only visible to the profile owner." /> ) : analytics.status !== "ready" ? (
+                <div className="text-center py-20 text-sc-muted text-sm animate-pulse"> 
+                Syncing analytics....
+                </div>
+              ) : anlytics.data.length === 0 ? ( 
+                <AnalyticsEmpty text="No activity yet. Interact with posts to see your emotional resonance." /> ) : (
               <div className="w-full animate-fade-in flex flex-col md:flex-row gap-6">
                 <div className="w-full md:w-1/2 glass-card p-6 shadow-glow">
                   <h3 className="font-bold mb-4 flex items-center gap-2">
@@ -798,7 +840,7 @@ export default function Profile() {
                           paddingAngle={5}
                           dataKey="value"
                         >
-                          {mockAnalyticsData.map((entry, index) => (
+                          {analytics.data.map((entry, index) => (
                             <Cell
                               key={`cell-${index}`}
                               fill={COLORS[index % COLORS.length]}
@@ -819,7 +861,7 @@ export default function Profile() {
                 </div>
 
                 <div className="w-full md:w-1/2 flex flex-col gap-4">
-                  {mockAnalyticsData.map((data, index) => (
+                  {analytics.data.map((data, index) => (
                     <div
                       key={data.name}
                       className="glass-card p-4 flex items-center justify-between"
@@ -842,13 +884,11 @@ export default function Profile() {
                     <strong className="text-sc-accent-light">
                       AI Observation:
                     </strong>{" "}
-                    Your recent activity strongly resonates with Vibrant
-                    frequencies. Consider connecting with users in the trending
-                    #EuphoricRhythms stream.
+                    Your recent activity strongly resonates with {analytics.data[0].name} ( {analytics.data[0].value }% presence ).
                   </div>
                 </div>
               </div>
-            )}
+            ))}
           </div>
         </div>
       </div>
