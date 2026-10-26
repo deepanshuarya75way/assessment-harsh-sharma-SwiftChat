@@ -40,7 +40,7 @@ function toResonanceData(radarData){
   const rows = (Array.isArray(radarData) ? radarData : []).map((d) => ({name: d.subject, raw: Math.max(0, (Number(d.A) || 0) - (RADAR_BASELINE[d.subject] ?? 0)), })).filter((d) => d.name && d.raw > 0);
   const total = rows.reduce((sum, d) => sum + d.raw , 0);
   if(!total) return [];
-  return rows.sort((a, b) => b.raw - a.raw || a.name.localCompare(b.name)).map((d) => ({name: d.name, value: Math.round((d.raw / total) * 100)}));
+  return rows.sort((a, b) => b.raw - a.raw || a.name.localeCompare(b.name)).map((d) => ({name: d.name, value: Math.round((d.raw / total) * 100)}));
 }
 
 function AnalyticsEmpty({text}){
@@ -820,7 +820,7 @@ export default function Profile() {
                 <div className="text-center py-20 text-sc-muted text-sm animate-pulse"> 
                 Syncing analytics....
                 </div>
-              ) : anlytics.data.length === 0 ? ( 
+              ) : analytics.data.length === 0 ? ( 
                 <AnalyticsEmpty text="No activity yet. Interact with posts to see your emotional resonance." /> ) : (
               <div className="w-full animate-fade-in flex flex-col md:flex-row gap-6">
                 <div className="w-full md:w-1/2 glass-card p-6 shadow-glow">
@@ -832,7 +832,7 @@ export default function Profile() {
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
-                          data={mockAnalyticsData}
+                          data={analytics.data}
                           cx="50%"
                           cy="50%"
                           innerRadius={60}
